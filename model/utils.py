@@ -2,13 +2,23 @@ import torch
 import torch.nn.functional as F
 
 
+# Define a function to select the appropriate dtype
+def get_autocast_dtype():
+    if (
+        torch.cuda.get_device_properties(0).major >= 8
+    ):  # Ampere and later architectures
+        return torch.bfloat16
+    else:
+        return torch.float16
+
+
 def get_model_fn(model, train=False):
     """Create a function to give the output of the score-based model.
 
     Args:
         model: The score model.
         train: `True` for training and `False` for evaluation.
-        mlm: If the input model is a mlm and models the base probability 
+        mlm: If the input model is a mlm and models the base probability
 
     Returns:
         A model function.
@@ -29,7 +39,7 @@ def get_model_fn(model, train=False):
             model.train()
         else:
             model.eval()
-        
+
             # otherwise output the raw values (we handle mlm training in losses.py)
         return model(x, sigma)
 
@@ -40,16 +50,17 @@ def get_score_fn(model, train=False, sampling=False):
     if sampling:
         assert not train, "Must sample in eval mode"
     model_fn = get_model_fn(model, train=train)
+    dtype = get_autocast_dtype()
+    with torch.cuda.amp.autocast(dtype=dtype):
 
-    with torch.cuda.amp.autocast(dtype=torch.bfloat16):
         def score_fn(x, sigma):
             sigma = sigma.reshape(-1)
             score = model_fn(x, sigma)
-            
+
             if sampling:
                 # when sampling return true score (not log used for training)
                 return score.exp()
-                
+
             return score
 
     return score_fn

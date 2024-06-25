@@ -11,7 +11,7 @@ from hydra.types import RunMode
 from omegaconf import OmegaConf, open_dict
 
 
-@hydra.main(version_base=None, config_path="configs", config_name="config")
+@hydra.main(version_base=None, config_path="configs", config_name="debug")
 def main(cfg):
     ngpus = cfg.ngpus
     if "load_dir" in cfg:
@@ -19,12 +19,16 @@ def main(cfg):
         hydra_cfg = OmegaConf.load(hydra_cfg_path).hydra
 
         cfg = utils.load_hydra_config_from_run(cfg.load_dir)
-        
+
         work_dir = cfg.work_dir
         utils.makedirs(work_dir)
     else:
         hydra_cfg = HydraConfig.get()
-        work_dir = hydra_cfg.run.dir if hydra_cfg.mode == RunMode.RUN else os.path.join(hydra_cfg.sweep.dir, hydra_cfg.sweep.subdir)
+        work_dir = (
+            hydra_cfg.run.dir
+            if hydra_cfg.mode == RunMode.RUN
+            else os.path.join(hydra_cfg.sweep.dir, hydra_cfg.sweep.subdir)
+        )
         utils.makedirs(work_dir)
 
     with open_dict(cfg):
@@ -32,7 +36,7 @@ def main(cfg):
         cfg.work_dir = work_dir
         cfg.wandb_name = os.path.basename(os.path.normpath(work_dir))
 
-	# Run the training pipeline
+    # Run the training pipeline
     port = int(np.random.randint(10000, 20000))
     logger = utils.get_logger(os.path.join(work_dir, "logs"))
 
@@ -41,8 +45,17 @@ def main(cfg):
         logger.info(f"Run id: {hydra_cfg.job.id}")
 
     try:
-        mp.set_start_method("forkserver")
-        mp.spawn(run_train.run_multiprocess, args=(ngpus, cfg, port), nprocs=ngpus, join=True)
+        # This is mostly for debugging purposes
+        if ngpus == 1:
+            run_train._run(0, 1, cfg)
+        else:
+            mp.set_start_method("forkserver")
+            mp.spawn(
+                run_train.run_multiprocess,
+                args=(ngpus, cfg, port),
+                nprocs=ngpus,
+                join=True,
+            )
     except Exception as e:
         logger.critical(e, exc_info=True)
 
