@@ -15,6 +15,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--steps", type=int, default=1024)
     parser.add_argument("--log-file", type=str, default=None)
+    parser.add_argument("--max-length", type=int, default=1024)
     args = parser.parse_args()
 
     device = torch.device("cuda")
@@ -30,7 +31,7 @@ def main():
     sampling_fn = sampling.get_pc_sampler(
         graph,
         noise,
-        (args.batch_size, 1024),
+        (args.batch_size, args.max_length),
         "analytic",
         args.steps,
         device=device,

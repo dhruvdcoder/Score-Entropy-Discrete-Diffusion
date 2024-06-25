@@ -24,12 +24,21 @@ def read_json_lines(file_path):
 # Initialize the grid for words
 def initialize_word_grid(ax, num_words):
     text_elements = []
-    num_cols = 64
+    num_cols = 2 * int(
+        np.ceil(np.sqrt(num_words))
+    )  # if 1024 words, 64 words per line
     for i in range(num_words):
         x = i % num_cols  # Example: 32 words per line
         y = i // num_cols
+        font_size = max(8, 400 // num_cols)
         text_element = ax.text(
-            x, -y, "", ha="center", va="center", color="black", fontsize=8
+            x,
+            -y,
+            "",
+            ha="center",
+            va="center",
+            color="black",
+            fontsize=font_size,
         )
         text_elements.append(text_element)
     return text_elements
@@ -52,19 +61,23 @@ def update(frame_number, data, text_elements, last_words):
 
 
 # Create the animation and save it
-def create_and_save_animation(data, file_name):
+def create_and_save_animation(data, file_name, max_length=1024):
     fig, ax = plt.subplots(figsize=(32, 16))
-    ax.set_xlim(-1, 64)  # Adjust based on your layout
-    ax.set_ylim(-16, 1)  # assuming 1024/64 = 16 lines
+    num_cols = 2 * int(
+        np.ceil(np.sqrt(max_length))
+    )  # if 1024 words, 64 words per line
+    num_rows = (max_length + num_cols - 1) // num_cols
+    ax.set_xlim(-1, num_cols)  # Adjust based on your layout
+    ax.set_ylim(-num_rows, 1)  # assuming 1024/64 = 16 lines
     ax.axis("off")
 
     # Enable grid
-    ax.grid(True, which="both", color="gray", linestyle="-", linewidth=0.5)
-    ax.set_xticks(np.arange(-0.5, 64, 1), minor=True)
-    ax.set_yticks(np.arange(-15.5, 1, 1), minor=True)
+    ax.grid(True, which="both", color="black", linestyle="-", linewidth=2)
+    ax.set_xticks(np.arange(-0.5, num_cols, 1), minor=True)
+    ax.set_yticks(np.arange(-num_rows + 0.5, 1, 1), minor=True)
 
-    text_elements = initialize_word_grid(ax, 1024)
-    last_words = [""] * 1024  # Initialize last words
+    text_elements = initialize_word_grid(ax, max_length)
+    last_words = [""] * max_length  # Initialize last words
 
     ani = FuncAnimation(
         fig,
@@ -77,6 +90,7 @@ def create_and_save_animation(data, file_name):
     )
 
     # Save the animation
+    print(f"Saving animation to {file_name}")
     ani.save(file_name, writer="ffmpeg", fps=1)
 
 
@@ -94,9 +108,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output", type=str, default=None, help="output file name"
     )
-
     args = parser.parse_args()
+    # outputs_<max_length>_<steps>.json
     input_file = args.input
+    max_len, num_steps = [
+        int(v)
+        for v in str(Path(input_file).with_suffix("").name).split("_")[1:]
+    ]
     output_file = args.output or Path(input_file).with_suffix(".mp4")
     data = read_json_lines(input_file)  # Update with your file path
-    create_and_save_animation(data, str(output_file))  # Saves as an MP4 file
+    create_and_save_animation(
+        data, str(output_file), max_length=max_len
+    )  # Saves as an MP4 file
